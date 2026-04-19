@@ -1,14 +1,15 @@
-#include <string.h>
-#include <stdlib.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
-#pragma comment(lib, "ws2_32.lib")
-
+#define SERVER_IP "127.0.0.1"
 #define PORT 5000
 #define BUFFER_SIZE 1024
 
+// Funksioni per kontrollin e privilegjeve
 int is_allowed(const char *role, const char *command) {
     if (!role || !command) {
         return 0;
@@ -27,38 +28,34 @@ int is_allowed(const char *role, const char *command) {
 }
 
 int main() {
-    WSADATA wsa;
-    SOCKET sockfd;
+    int sockfd;
     struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
     char role[20];
 
-    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
-        printf("Gabim në Winsock\n");
-        return 1;
-    }
-
+    // Krijimi i socket-it ne Linux
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd == INVALID_SOCKET) {
-        printf("Gabim në socket\n");
+    if (sockfd < 0) {
+        perror("Gabim ne socket");
         return 1;
     }
 
+    memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
 
     printf("Zgjedh rolin (admin / read): ");
     scanf("%19s", role);
-    getchar();
+    getchar(); // Pastron newline nga buffer-i
 
     printf("U lidhe si: %s\n", role);
 
     while (1) {
         printf("\nShkruaj komanden: ");
-        fgets(buffer, BUFFER_SIZE, stdin);
+        if (fgets(buffer, BUFFER_SIZE, stdin) == NULL) break;
 
-        buffer[strcspn(buffer, "\n")] = 0;
+        buffer[strcspn(buffer, "\n")] = 0; // Heq \n ne fund
 
         if (strcmp(buffer, "exit") == 0) {
             printf("Duke u mbyllur...\n");
@@ -70,15 +67,17 @@ int main() {
             continue;
         }
 
+        // Dergimi i mesazhit
         sendto(sockfd, buffer, strlen(buffer), 0,
                (struct sockaddr*)&server_addr, sizeof(server_addr));
 
-        int len = sizeof(server_addr);
+        // Marrja e pergjigjes
+        socklen_t len = sizeof(server_addr);
         int n = recvfrom(sockfd, buffer, BUFFER_SIZE - 1, 0,
                          (struct sockaddr*)&server_addr, &len);
 
-        if (n == SOCKET_ERROR) {
-            printf("Gabim në marrje\n");
+        if (n < 0) {
+            perror("Gabim ne marrje");
             continue;
         }
 
@@ -86,8 +85,6 @@ int main() {
         printf("Serveri: %s\n", buffer);
     }
 
-    closesocket(sockfd);
-    WSACleanup();
-
+    close(sockfd);
     return 0;
 }
