@@ -1,3 +1,4 @@
+#include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,23 +8,9 @@
 #include <sys/select.h>
 #include <time.h>
 
-#define UDP_PORT 5000
-#define BUFFER_SIZE 1024
-#define MAX_CLIENTS 10
-#define TIMEOUT_SEC 60 
-
-
 int total_messages_received = 0; 
 
-
-typedef struct {
-    struct sockaddr_in addr;
-    time_t last_active;
-    int is_active;
-} UDPClient;
-
 UDPClient clients[MAX_CLIENTS];
-
 
 int find_or_add_client(struct sockaddr_in *client_addr) {
     time_t now = time(NULL);
@@ -63,13 +50,11 @@ int main() {
         clients[i].is_active = 0;
     }
 
-    
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Krijimi i socket deshtoi");
         exit(EXIT_FAILURE);
     }
 
-    
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -93,7 +78,6 @@ int main() {
 
         int activity = select(sockfd + 1, &readfds, NULL, NULL, &tv);
 
-       
         time_t now = time(NULL);
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (clients[i].is_active) {
@@ -119,10 +103,8 @@ int main() {
                 buffer[n] = '\0'; 
                 buffer[strcspn(buffer, "\n")] = 0;
 
-                
                 total_messages_received++;
 
-                
                 int client_idx = find_or_add_client(&client_addr);
                 
                 if (client_idx != -1) {
@@ -137,7 +119,6 @@ int main() {
                     sprintf(reply, "Serveri UDP: Mesazhi yt '%s' u procesua.\n", buffer);
                     sendto(sockfd, reply, strlen(reply), 0, (const struct sockaddr *)&client_addr, addr_len);
                 } else {
-                    
                     char *err = "Serveri eshte plot. Lidhja refuzohet.\n";
                     sendto(sockfd, err, strlen(err), 0, (const struct sockaddr *)&client_addr, addr_len);
                 }
