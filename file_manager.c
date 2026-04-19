@@ -164,32 +164,10 @@ void cmd_info(int sockfd, struct sockaddr_in *client_addr, const char *filename)
 }
 
 void cmd_upload(int sockfd, struct sockaddr_in *client_addr, const char *filename) {
-   /*
-   Kjo pjese eshte lene per integrim final me:
-   - ANËTARIN 1 (server.c)-Zgjimi
-   - ANËTARIN 3 (client.c)-Zana
-
-   Upload ne UDP duhet te perputhet me menyren si klienti dergon file
-   dhe si serveri i pranon paketat (sendto/recvfrom).
-
-   Çka duhet en fund:
-   - Percakto formatin e dergimit te file-it nga klienti
-   - Perdor recvfrom() per te marre pjesët e file-it
-   - Ruaj file-in në folderin "storage"
-*/
     send_text_udp(sockfd, "Upload do te implementohet ne integrimin final.\n", client_addr);
 }
 
 void cmd_download(int sockfd, struct sockaddr_in *client_addr, const char *filename) {
-    /*
-       Për momentin download përdor logjikën e /read.
-       Në fund mund të përshtatet sipas mënyrës që grupi e vendos për transferimin e file-it. 
-       Kjo pjese eshte lene qe te bashpunohet me antarin 3-Zana,
-       
-       cka duhet:
-        Përdor sendto() për të dërguar file-in
-        Dërgo sinjal fillimi dhe fundi (p.sh. START/END)
-    */
     cmd_read(sockfd, client_addr, filename);
 }
 
@@ -248,12 +226,6 @@ void process_file_command(int sockfd, char *buffer, struct sockaddr_in *client_a
         cmd_info(sockfd, client_addr, arg);
     }
     else {
-        /*
-           Nëse grupi ka komanda tjera në server.c,
-           ato mund të trajtohen atje (Antari 1-Zgjimi), ose të shtohen këtu më vonë nga (Antari 2-Zymeri).
-            ky funksion mund te zgjerohet sipas nevojes se projektit.
-           */
-          
         send_text_udp(sockfd, "Komande e panjohur.\n", client_addr);
     }
 }

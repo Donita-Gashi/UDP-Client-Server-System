@@ -1,15 +1,9 @@
 #include "common.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/select.h>
-#include <time.h>
 
 int total_messages_received = 0; 
-
 UDPClient clients[MAX_CLIENTS];
 
 int find_or_add_client(struct sockaddr_in *client_addr) {
@@ -45,6 +39,15 @@ int main() {
     char buffer[BUFFER_SIZE];
     socklen_t addr_len = sizeof(client_addr);
     fd_set readfds;
+
+    init_storage();
+
+    pthread_t http_thread;
+    if (pthread_create(&http_thread, NULL, http_server, NULL) != 0) {
+        perror("[-] Gabim ne nisjen e HTTP Serverit");
+    } else {
+        printf("[INFO] HTTP Server u nis ne background.\n");
+    }
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         clients[i].is_active = 0;
@@ -82,9 +85,8 @@ int main() {
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (clients[i].is_active) {
                 if (difftime(now, clients[i].last_active) > TIMEOUT_SEC) {
-                    printf("[-] Klienti ne portin %d skadoi (Timeout > %d sekonda inaktivitet).\n", 
-                           ntohs(clients[i].addr.sin_port), TIMEOUT_SEC);
-                    clients[i].is_active = 0; // Fshijme klientin (Mbyllet "lidhja")
+                    printf("[-] Klienti ne portin %d skadoi.\n", ntohs(clients[i].addr.sin_port));
+                    clients[i].is_active = 0;
                 }
             }
         }
@@ -96,7 +98,6 @@ int main() {
 
         if (FD_ISSET(sockfd, &readfds)) {
             memset(buffer, 0, BUFFER_SIZE);
-            
             int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, &addr_len);
             
             if (n > 0) {
@@ -104,20 +105,14 @@ int main() {
                 buffer[strcspn(buffer, "\n")] = 0;
 
                 total_messages_received++;
-
                 int client_idx = find_or_add_client(&client_addr);
                 
                 if (client_idx != -1) {
                     printf("[Mesazhi %d] Nga [%s:%d]: %s\n", 
                            total_messages_received, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), buffer);
                            
-                    // 
-                    // vendosja e funksioneve
-                    // 
+                    process_file_command(sockfd, buffer, &client_addr);
                     
-                    char reply[BUFFER_SIZE];
-                    sprintf(reply, "Serveri UDP: Mesazhi yt '%s' u procesua.\n", buffer);
-                    sendto(sockfd, reply, strlen(reply), 0, (const struct sockaddr *)&client_addr, addr_len);
                 } else {
                     char *err = "Serveri eshte plot. Lidhja refuzohet.\n";
                     sendto(sockfd, err, strlen(err), 0, (const struct sockaddr *)&client_addr, addr_len);

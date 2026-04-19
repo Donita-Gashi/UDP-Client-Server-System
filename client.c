@@ -6,76 +6,88 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-#define PORT 9090
+#define PORT 5000
 #define BUFFER_SIZE 1024
 
-
-int is_allowed(const char *role, const char *command);
+int is_allowed(const char *role, const char *command) {
+    if (!role || !command) {
+        return 0;
+    }
+    if (strcmp(role, "admin") == 0) {
+        return 1;
+    }
+    if (strcmp(role, "read") == 0) {
+        if (strncmp(command, "/list", 5) == 0) return 1;
+        if (strncmp(command, "/read", 5) == 0) return 1;
+        if (strncmp(command, "/search", 7) == 0) return 1;
+        if (strncmp(command, "/info", 5) == 0) return 1;
+        return 0;
+    }
+    return 0;
+}
 
 int main() {
-WSADATA wsa;
-SOCKET sockfd;
-struct sockaddr_in server_addr;
-char buffer[BUFFER_SIZE];
-char role[20];
+    WSADATA wsa;
+    SOCKET sockfd;
+    struct sockaddr_in server_addr;
+    char buffer[BUFFER_SIZE];
+    char role[20];
 
+    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
+        printf("Gabim në Winsock\n");
+        return 1;
+    }
 
-if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
-printf("Gabim në Winsock\n");
-return 1;
-}
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd == INVALID_SOCKET) {
+        printf("Gabim në socket\n");
+        return 1;
+    }
 
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-if (sockfd == INVALID_SOCKET) {
-printf("Gabim në socket\n");
-return 1;
-}
+    printf("Zgjedh rolin (admin / read): ");
+    scanf("%19s", role);
+    getchar();
 
-server_addr.sin_family = AF_INET;
-server_addr.sin_port = htons(PORT);
-server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    printf("U lidhe si: %s\n", role);
 
-printf("Zgjedh rolin (admin / read): ");
-scanf("%19s", role);
-getchar();
+    while (1) {
+        printf("\nShkruaj komanden: ");
+        fgets(buffer, BUFFER_SIZE, stdin);
 
-printf("U lidhe si: %s\n", role);
+        buffer[strcspn(buffer, "\n")] = 0;
 
-while (1) {
-printf("\nShkruaj komanden: ");
-fgets(buffer, BUFFER_SIZE, stdin);
+        if (strcmp(buffer, "exit") == 0) {
+            printf("Duke u mbyllur...\n");
+            break;
+        }
 
-buffer[strcspn(buffer, "\n")] = 0;
+        if (!is_allowed(role, buffer)) {
+            printf("Nuk ke privilegje per kete komande!\n");
+            continue;
+        }
 
-if (strcmp(buffer, "exit") == 0) {
-printf("Duke u mbyllur...\n");
-break;
-}
+        sendto(sockfd, buffer, strlen(buffer), 0,
+               (struct sockaddr*)&server_addr, sizeof(server_addr));
 
-if (!is_allowed(role, buffer)) {
-printf("Nuk ke privilegje!\n");
-continue;
-}
+        int len = sizeof(server_addr);
+        int n = recvfrom(sockfd, buffer, BUFFER_SIZE - 1, 0,
+                         (struct sockaddr*)&server_addr, &len);
 
-sendto(sockfd, buffer, strlen(buffer), 0,
-(struct sockaddr*)&server_addr, sizeof(server_addr));
+        if (n == SOCKET_ERROR) {
+            printf("Gabim në marrje\n");
+            continue;
+        }
 
-int len = sizeof(server_addr);
-int n = recvfrom(sockfd, buffer, BUFFER_SIZE - 1, 0,
-(struct sockaddr*)&server_addr, &len);
+        buffer[n] = '\0';
+        printf("Serveri: %s\n", buffer);
+    }
 
-if (n == SOCKET_ERROR) {
-printf("Gabim në marrje\n");
-continue;
-}
+    closesocket(sockfd);
+    WSACleanup();
 
-buffer[n] = '\0';
-printf("Serveri: %s\n", buffer);
-}
-
-closesocket(sockfd);
-WSACleanup();
-
-return 0;
+    return 0;
 }

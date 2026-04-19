@@ -6,7 +6,7 @@
 #include <pthread.h>
 #include "common.h"
 
-#define PORT 8080
+#define HTTP_PORT 8080
 
 void *handle_request(void *arg) {
     int new_socket = *(int*)arg;
@@ -17,23 +17,21 @@ void *handle_request(void *arg) {
     read(new_socket, buffer, sizeof(buffer));
 
     if (strstr(buffer, "GET /stats") != NULL) {
-
         char clients_info[1000] = "";
-        char logs_info[2000] = "";
         char body[4000];
         char response[5000];
+        int active_clients_count = 0;
 
-        // klientet
-        for (int i = 0; i < client_count; i++) {
-            char temp[100];
-            sprintf(temp, "Client %d: %s\n", i + 1, clients[i].ip);
-            strcat(clients_info, temp);
-        }
-
-        // log-et
-        for (int i = 0; i < total_messages && i < MAX_LOGS; i++) {
-            strcat(logs_info, logs[i]);
-            strcat(logs_info, "\n");
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (clients[i].is_active) {
+                active_clients_count++;
+                char temp[100];
+                sprintf(temp, "Client %d: %s:%d\n", 
+                        i + 1, 
+                        inet_ntoa(clients[i].addr.sin_addr), 
+                        ntohs(clients[i].addr.sin_port));
+                strcat(clients_info, temp);
+            }
         }
 
         int is_json = strstr(buffer, "format=json") != NULL;
@@ -44,7 +42,7 @@ void *handle_request(void *arg) {
                 "  \"active_clients\": %d,\n"
                 "  \"total_messages\": %d\n"
                 "}\n",
-                client_count, total_messages
+                active_clients_count, total_messages_received
             );
 
             sprintf(response,
@@ -59,9 +57,8 @@ void *handle_request(void *arg) {
             sprintf(body,
                 "Active clients: %d\n"
                 "Total messages: %d\n\n"
-                "Clients:\n%s\n"
-                "Logs:\n%s\n",
-                client_count, total_messages, clients_info, logs_info
+                "Clients:\n%s\n",
+                active_clients_count, total_messages_received, clients_info
             );
 
             sprintf(response,
@@ -87,7 +84,6 @@ void *handle_request(void *arg) {
     return NULL;
 }
 
-
 void *http_server(void *arg) {
     int server_fd;
     struct sockaddr_in address;
@@ -95,32 +91,35 @@ void *http_server(void *arg) {
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
-        perror("socket failed");
-        exit(EXIT_FAILURE);
+        perror("HTTP socket failed");
+        pthread_exit(NULL);
     }
+
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
+    address.sin_port = htons(HTTP_PORT);
 
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("bind failed");
-        exit(EXIT_FAILURE);
+        perror("HTTP bind failed");
+        pthread_exit(NULL);
     }
 
     if (listen(server_fd, 10) < 0) {
-        perror("listen failed");
-        exit(EXIT_FAILURE);
+        perror("HTTP listen failed");
+        pthread_exit(NULL);
     }
 
-    printf("HTTP server running on port %d...\n", PORT);
+    printf("[INFO] HTTP server running on port %d... (Hap ne browser: http://localhost:8080/stats)\n", HTTP_PORT);
 
     while (1) {
         int *new_socket = malloc(sizeof(int));
         *new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
 
         if (*new_socket < 0) {
-            perror("accept failed");
+            perror("HTTP accept failed");
             free(new_socket);
             continue;
         }
