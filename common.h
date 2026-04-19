@@ -17,5 +17,13 @@ typedef struct {
 
 extern int total_messages_received;
 extern UDPClient clients[MAX_CLIENTS];
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+void init_storage();
+void process_file_command(int sockfd, char *buffer, struct sockaddr_in *client_addr);
 
 #endif
